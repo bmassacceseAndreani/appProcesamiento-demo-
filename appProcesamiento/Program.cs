@@ -1,4 +1,5 @@
 ﻿using EasyModbus;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Net;
 using System.Net.Sockets;
@@ -8,34 +9,43 @@ namespace appProcesamiento
 {
     class Program
     {
+        public static string serverIP = null;
+        public static string serverPort = null;
+
+        public static string plcIP = null;
+        public static string plcPort = null;
+
         static void Main(string[] args)
         {
 
-            //Inicializo el server donde escucho al cliente scanner
-            IPHostEntry host = Dns.GetHostEntry("10.200.13.155");           //USAR IP DE LA COMPUTADORA
-            IPAddress ipAddress = host.AddressList[0];
-            IPEndPoint localEndPoint = new IPEndPoint(ipAddress, 11000);    //USAR PUERTO DEL SCANNER
-
-            //Inicializo modbus para comunicación con PLC
-            ModbusClient modbus = new ModbusClient();
-            modbus.IPAddress = "10.20.65.195";                              //USAR IP FIJA DEL PLC
-            modbus.Port = Convert.ToInt32(502);                             //USAR PUERTO DEL PLC
-
-            //Me conecto con el PLC vía modbus
-            if (modbus.Connected == false)
-            {
-                try
-                {
-                    modbus.Connect();
-                }
-                catch (InvalidCastException e)
-                {
-                    Console.Write("Error: " + e.Message);
-                }
-            }
-
             try
             {
+                ObtenerConfig();
+
+                //Inicializo el server donde escucho al cliente scanner
+                IPHostEntry host = Dns.GetHostEntry(serverIP);           //USAR IP DE LA COMPUTADORA
+                IPAddress ipAddress = host.AddressList[0];
+                IPEndPoint localEndPoint = new IPEndPoint(ipAddress, Int32.Parse(serverPort));    //USAR PUERTO DEL SCANNER
+
+                //Inicializo modbus para comunicación con PLC
+                ModbusClient modbus = new ModbusClient();
+                modbus.IPAddress = plcIP;                              //USAR IP FIJA DEL PLC
+                modbus.Port = Convert.ToInt32(plcPort);                //USAR PUERTO DEL PLC
+
+                //Me conecto con el PLC vía modbus
+                if (modbus.Connected == false)
+                {
+                    try
+                    {
+                        modbus.Connect();
+                    }
+                    catch (InvalidCastException e)
+                    {
+                        Console.Write("Error: " + e.Message);
+                    }
+                }
+
+
                 //Creo el Socket para conectarme con el scanner      
                 Socket listener = new Socket(ipAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
                 //Asocio el socket al endPoint 
@@ -103,19 +113,58 @@ namespace appProcesamiento
 
                 //Console.WriteLine("Text received : {0}", data);
 
-                byte[] msg = Encoding.ASCII.GetBytes(data);
-                handler.Send(msg);
-                handler.Shutdown(SocketShutdown.Both);
-                handler.Close();
+                //byte[] msg = Encoding.ASCII.GetBytes(data);
+                //handler.Send(msg);
+                //handler.Shutdown(SocketShutdown.Both);
+                //handler.Close();
             }
             catch (Exception e)
             {
                 Console.WriteLine(e.ToString());
             }
 
-            Console.WriteLine("\n Press any key to continue...");
-            Console.ReadKey();
-        
+            Console.WriteLine("\nPresione alguna tecla para salir ");
+            System.Environment.Exit(1);
+        }
+
+        public static void ObtenerConfig()
+        {
+            try
+            {
+                // Set up configuration sources.
+                var builder = new ConfigurationBuilder()
+                    .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+
+                var configuration = builder.Build();
+
+                serverIP = configuration["Server:ServerIP"];
+
+                serverPort = configuration["Server:ServerPort"];
+
+                plcIP = configuration["PLC:PLCIP"];
+
+                plcPort = configuration["PLC:PLCPort"];
+
+                //Console.WriteLine($"Server IP: {serverIP}");
+                //Console.WriteLine($"Server Puerto: {serverPort}");
+
+                //Console.WriteLine($"PLC IP: {plcIP}");
+                //Console.WriteLine($"PLC Puerto: {plcPort}");
+
+                if (String.IsNullOrEmpty(serverIP) || String.IsNullOrEmpty(serverIP) || String.IsNullOrEmpty(plcIP) || String.IsNullOrEmpty(plcPort))
+                {
+                    Console.WriteLine("\nError al obtener los datos de configuración");
+                    Console.WriteLine("\nPresione alguna tecla para salir ");
+                    System.Environment.Exit(1);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error de configuración: " + ex.Message + " " + ex.InnerException);
+                Console.WriteLine("\nPresione alguna tecla para salir ");
+                System.Environment.Exit(1);
+            }
+
         }
     }
 }
